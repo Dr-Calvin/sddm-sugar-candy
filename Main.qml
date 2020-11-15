@@ -24,6 +24,8 @@
 
 import QtQuick 2.11
 import QtQuick.Layouts 1.11
+import SddmComponents 2.0
+import QtMultimedia 5.7
 import QtQuick.Controls 2.4
 import QtGraphicalEffects 1.0
 import "Components"
@@ -94,6 +96,96 @@ Pane {
             opacity: config.PartialBlur == "true" ? 0.3 : 1
             z: 1
         }
+        // Set Background Video1
+        MediaPlayer {
+            id: mediaplayer1
+            autoPlay: true; muted: true
+            playlist: Playlist {
+                id: playlist1
+                playbackMode: Playlist.Random
+                onLoaded: { mediaplayer1.play() }
+            }
+        }
+
+        VideoOutput {
+            id: video1
+            fillMode: VideoOutput.PreserveAspectCrop
+            anchors.fill: parent; source: mediaplayer1
+            MouseArea {
+                id: mouseArea1
+                anchors.fill: parent;
+                //onPressed: {playlist1.shuffle(); playlist1.next();}
+                onPressed: {
+                    fader1.state = fader1.state == "off" ? "on" : "off" ;
+                    if (config.autofocusInput == "true") {
+                        if (username_input_box.text == "")
+                            username_input_box.focus = true
+                        else
+                            password_input_box.focus = true
+                    }
+                }
+            }
+            Keys.onPressed: {
+                fader1.state = "on";
+                if (username_input_box.text == "")
+                    username_input_box.focus = true
+                else
+                    password_input_box.focus = true
+            }
+        }
+
+        // Set Background Video2
+        MediaPlayer {
+            id: mediaplayer2
+            autoPlay: true; muted: true
+            playlist: Playlist {
+                id: playlist2; playbackMode: Playlist.Random
+                //onLoaded: { mediaplayer2.play() }
+            }
+        }
+
+        VideoOutput {
+            id: video2
+            fillMode: VideoOutput.PreserveAspectCrop
+            anchors.fill: parent; source: mediaplayer2
+            opacity: 0
+            MouseArea {
+                id: mouseArea2
+                enabled: false
+                anchors.fill: parent;
+                onPressed: {
+                    fader1.state = fader1.state == "off" ? "on" : "off" ;
+                    if (config.autofocusInput == "true") {
+                        if (username_input_box.text == "")
+                            username_input_box.focus = true
+                        else
+                            password_input_box.focus = true
+                    }
+                }
+            }
+            Behavior on opacity {
+                enabled: true
+                NumberAnimation { easing.type: Easing.InOutQuad; duration: 3000 }
+            }
+            Keys.onPressed: {
+                fader2.state = "on";
+                if (username_input_box.text == "")
+                    username_input_box.focus = true
+                else
+                    password_input_box.focus = true
+            }
+        }
+
+        WallpaperFader {
+            id: fader2
+            visible: true
+            anchors.fill: parent
+            state: "off"
+            source: video2
+            mainStack: formBackground
+            footer: formBackground
+        }
+
 
         LoginForm {
             id: form
@@ -271,4 +363,71 @@ Pane {
             visible: config.FullBlur == "true" || config.PartialBlur == "true" ? true : false
         }
     }
+            property MediaPlayer currentPlayer: mediaplayer1
+
+    // Timer event to handle fade between videos
+    Timer {
+        interval: 1000;
+        running: true; repeat: true
+        onTriggered: {
+            if (currentPlayer.duration != -1 && currentPlayer.position > currentPlayer.duration - 10000) { // pre load the 2nd player
+                if (video2.opacity == 0) { // toogle opacity
+                    mediaplayer2.play()
+                } else
+                    mediaplayer1.play()
+            }
+            if (currentPlayer.duration != -1 && currentPlayer.position > currentPlayer.duration - 3000) { // initiate transition
+                if (video2.opacity == 0) { // toogle opacity
+                    mouseArea1.enabled = false
+                    currentPlayer = mediaplayer2
+                    video2.opacity = 1
+                    triggerTimer.start()
+                    mouseArea2.enabled = true
+                } else {
+                    mouseArea2.enabled = false
+                    currentPlayer = mediaplayer1
+                    video2.opacity = 0
+                    triggerTimer.start()
+                    mouseArea1.enabled = true
+                }
+            }
+        }
+    }
+
+    Timer { // this timer waits for fade to stop and stops the video
+        id: triggerTimer
+        interval: 4000; running: false; repeat: false
+        onTriggered: {
+            if (video2.opacity == 1)
+                mediaplayer1.stop()
+            else
+                mediaplayer2.stop()
+        }
+    }
+	
+    Component.onCompleted: {
+        // Set Focus
+        /* if (username_input_box.text == "") */
+        /*     username_input_box.focus = true */
+        /* else */
+        /*     password_input_box.focus = true */
+
+        video1.focus = true
+
+        // load and randomize playlist
+        var time = parseInt(new Date().toLocaleTimeString(Qt.locale(),'h'))
+        if ( time >= 5 && time <= 17 ) {
+            playlist1.load(Qt.resolvedUrl(config.background_day), 'm3u')
+            playlist2.load(Qt.resolvedUrl(config.background_day), 'm3u')
+        } else {
+            playlist1.load(Qt.resolvedUrl(config.background_night), 'm3u')
+            playlist2.load(Qt.resolvedUrl(config.background_night), 'm3u')
+        }
+
+        for (var k = 0; k < Math.ceil(Math.random() * 10) ; k++) {
+            playlist1.shuffle()
+            playlist2.shuffle()
+        }
+	}
 }
+
